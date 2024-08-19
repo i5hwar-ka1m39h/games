@@ -52,9 +52,16 @@ food = Tile(10*TILE_WIDTH, 10*TILE_HEIGHT)
 snake_body = []  #collection of tiles that are going to be added 
 velocityX = 0
 velocityY = 0
+game_over = False
+score = 0
 
 def change_direction(e):
-    global velocityX, velocityY
+    global velocityX, velocityY, game_over
+
+    if game_over:
+        return
+    
+
     if (e.keysym == 'Up' and velocityY != 1):
         velocityX = 0
         velocityY = -1
@@ -72,13 +79,45 @@ def change_direction(e):
         velocityY = 0
     
 def move():
-    global snake
+    global snake, food, snake_body, game_over, score
+
+    if game_over:
+        return
+    
+    if ( snake.x < 0 or snake.x >= WINDOW_WIDTH or snake.y < 0 or snake.y >= WINDOW_HEIGHT):
+        game_over = True
+        return
+    
+    for tile in snake_body:
+        if(snake.x == tile.x and snake.y == tile.y):
+            game_over = True
+            return
+
+    #eat food
+    if ( food.x == snake.x and food.y == snake.y):
+        snake_body.append(Tile(food.x, food.y))
+        food.x = random.randint(0, TOTAL_COLUMNS -1 ) * TILE_SIZE
+        food.x = random.randint(0, TOTAL_ROWS -1 ) * TILE_SIZE
+        score += 1
+
+    #updating the snake body
+    for i in range(len(snake_body)-1, -1, -1):
+        tile = snake_body[i]
+
+        if (i== 0):
+            tile.x = snake.x
+            tile.y = snake.y
+
+        else:
+            prev_tile = snake_body[i -1]
+            tile.x = prev_tile.x
+            tile.y = prev_tile.y
 
     snake.x += velocityX * TILE_SIZE
     snake.y += velocityY * TILE_SIZE 
 
 def draw():
-    global snake
+    global snake, food, snake_body, score, game_over
 
     move()
 
@@ -91,7 +130,15 @@ def draw():
     #creating snake
     canvas.create_rectangle(snake.x, snake.y, snake.x+TILE_WIDTH, snake.y+TILE_HEIGHT, fill='green')
 
-    window.after(200,draw)
+    for single_tile in snake_body:
+        canvas.create_rectangle(single_tile.x, single_tile.y, single_tile.x+TILE_SIZE, single_tile.y+TILE_SIZE, fill='green' )
+
+    if(game_over):
+        canvas.create_text(WINDOW_WIDTH/2, WINDOW_HEIGHT/2, font='Arial 20', text=f"Game Over: {score}", fill='white')
+    else:
+        canvas.create_text(30, 20, font='Arial 10', text=f"Score: {score}", fill='white')
+
+    window.after(100,draw)
 
 draw()
 
