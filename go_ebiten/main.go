@@ -22,10 +22,11 @@ type Dimensions struct {
 type Game struct {
 	PlayerPos  Vector
 	WindowSize Dimensions
+	BGOffset   float64
 }
 
 // update logic
-func (game *Game) Update() error {
+func (game *Game) UpdatePlayer() error {
 	speed := float64(300 / ebiten.TPS())
 
 	if ebiten.IsKeyPressed(ebiten.KeyArrowUp) {
@@ -46,8 +47,47 @@ func (game *Game) Update() error {
 	return nil
 }
 
+func (game *Game) Update() error {
+	speed := 2.0
+	game.BGOffset += speed
+
+	bgHeigh := float64(assets.BGImg.Bounds().Dy())
+
+	if game.BGOffset >= bgHeigh {
+		game.BGOffset -= bgHeigh
+	}
+
+	game.UpdatePlayer()
+	return nil
+}
+
+func (game *Game) DrawBackground(screen *ebiten.Image) {
+	bg := assets.BGImg
+
+	bgWidth := bg.Bounds().Dx()
+	bgHeight := bg.Bounds().Dy()
+
+	tileX := game.WindowSize.Width/bgWidth + 2
+	tileY := game.WindowSize.Height/bgHeight + 2
+
+	for y := -1; y < tileY; y++ {
+		for x := 0; x < tileX; x++ {
+			op := &ebiten.DrawImageOptions{}
+
+			drawX := float64(x * bgWidth)
+			drawY := float64(y*bgHeight) + game.BGOffset
+
+			op.GeoM.Translate(drawX, drawY)
+
+			screen.DrawImage(bg, op)
+		}
+	}
+}
+
 // for drawing shit on screen
 func (game *Game) Draw(scree *ebiten.Image) {
+
+	game.DrawBackground(scree)
 	op := &ebiten.DrawImageOptions{} //how image should look
 
 	//op.GeoM.Scale(0.5, 0.5)                                                // size adding (1, -1) rotates the image
