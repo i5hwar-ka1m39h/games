@@ -6,101 +6,43 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/i5hwar-ka1m39h/games/go_ebiten/assets"
+	"github.com/i5hwar-ka1m39h/games/go_ebiten/components"
+	gtypes "github.com/i5hwar-ka1m39h/games/go_ebiten/g_types"
 )
 
-type Vector struct {
-	X float64
-	Y float64
+var wndSz = gtypes.Dimension{
+	Width:  960,
+	Height: 640,
 }
+var playersprite = assets.PlayerImage
+var bgSpite = assets.BGImg
 
-type Dimensions struct {
-	Width  int
-	Height int
-}
+var player = components.NewPlayer(gtypes.Vector{
+	X: float64(wndSz.Width) * 0.5,
+	Y: float64(wndSz.Height) * 0.8,
+}, 5.0, playersprite)
+
+var background = components.NewBackground(bgSpite, 2.0)
 
 // this is base struct that in need in ebiten.RunGame
 type Game struct {
-	PlayerPos  Vector
-	WindowSize Dimensions
-	BGOffset   float64
+	PlayerPos  gtypes.Vector
+	WindowSize gtypes.Dimension
 }
 
 // update logic
-func (game *Game) UpdatePlayer() error {
-	speed := float64(300 / ebiten.TPS())
-
-	if ebiten.IsKeyPressed(ebiten.KeyArrowUp) {
-		game.PlayerPos.Y -= speed
-	}
-
-	if ebiten.IsKeyPressed(ebiten.KeyArrowDown) {
-		game.PlayerPos.Y += speed
-	}
-
-	if ebiten.IsKeyPressed(ebiten.KeyArrowLeft) {
-		game.PlayerPos.X -= speed
-	}
-
-	if ebiten.IsKeyPressed(ebiten.KeyArrowRight) {
-		game.PlayerPos.X += speed
-	}
-	return nil
-}
-
 func (game *Game) Update() error {
-	speed := 2.0
-	game.BGOffset += speed
+	background.UpdateBackground()
+	player.UpdatePlayer()
 
-	bgHeigh := float64(assets.BGImg.Bounds().Dy())
-
-	if game.BGOffset >= bgHeigh {
-		game.BGOffset -= bgHeigh
-	}
-
-	game.UpdatePlayer()
 	return nil
-}
-
-func (game *Game) DrawBackground(screen *ebiten.Image) {
-	bg := assets.BGImg
-
-	bgWidth := bg.Bounds().Dx()
-	bgHeight := bg.Bounds().Dy()
-
-	tileX := game.WindowSize.Width/bgWidth + 2
-	tileY := game.WindowSize.Height/bgHeight + 2
-
-	for y := -1; y < tileY; y++ {
-		for x := 0; x < tileX; x++ {
-			op := &ebiten.DrawImageOptions{}
-
-			drawX := float64(x * bgWidth)
-			drawY := float64(y*bgHeight) + game.BGOffset
-
-			op.GeoM.Translate(drawX, drawY)
-
-			screen.DrawImage(bg, op)
-		}
-	}
 }
 
 // for drawing shit on screen
-func (game *Game) Draw(scree *ebiten.Image) {
+func (game *Game) Draw(screen *ebiten.Image) {
+	background.DrawBackground(screen, game.WindowSize.Width)
+	player.DrawPlayer(screen)
 
-	game.DrawBackground(scree)
-	op := &ebiten.DrawImageOptions{} //how image should look
-
-	//op.GeoM.Scale(0.5, 0.5)                                                // size adding (1, -1) rotates the image
-	plyrImgWidth := float64(assets.PlayerImage.Bounds().Dx())
-	plyrImgHeight := float64(assets.PlayerImage.Bounds().Dy())
-
-	hlWidth := float64(plyrImgWidth / 2)
-	hlHeight := float64(plyrImgHeight / 2)
-
-	// op.GeoM.Rotate(math.Pi)  // it takes radians not so keep it mind also keep in mind the screen and image relation this can fuck up and display image in negative part
-	op.GeoM.Translate(game.PlayerPos.X-hlWidth, game.PlayerPos.Y-hlHeight) //move the image
-
-	scree.DrawImage(assets.PlayerImage, op)
 }
 
 func (game *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
@@ -108,12 +50,8 @@ func (game *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHe
 }
 func main() {
 
-	wndSz := Dimensions{
-		Width:  960,
-		Height: 640,
-	}
 	game := &Game{
-		PlayerPos: Vector{
+		PlayerPos: gtypes.Vector{
 			X: float64(wndSz.Width) * 0.5,
 			Y: float64(wndSz.Height) * 0.8,
 		},
