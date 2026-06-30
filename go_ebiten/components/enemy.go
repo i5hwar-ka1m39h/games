@@ -4,7 +4,6 @@ import (
 	"image"
 	"time"
 
-	"github.com/go-playground/locales/ti"
 	"github.com/hajimehoshi/ebiten/v2"
 	gtypes "github.com/i5hwar-ka1m39h/games/go_ebiten/g_types"
 	"github.com/i5hwar-ka1m39h/games/go_ebiten/utils"
@@ -48,11 +47,29 @@ func NewDragon(initPos gtypes.Vector, speed float64, fullImage *ebiten.Image, en
 	}
 }
 
-func UpdateEnemy(d *Dragon) error {
+func (d *Dragon) UpdateEnemy() error {
+
+	d.Timer.Update()
+
+	if d.Timer.IsReady() {
+		d.CurrentFrame++
+
+		if d.CurrentFrame >= len(d.Frames) {
+			d.CurrentFrame = 0
+		}
+		d.Timer.Reset()
+	}
 
 	return nil
 }
 
-func DrawEnemy(screen *ebiten.Image) {
+func (d *Dragon) DrawEnemy(screen *ebiten.Image) {
+	op := ebiten.DrawImageOptions{}
+
+	op.GeoM.Scale(2.0, 2.0)
+
+	op.GeoM.Translate(d.InitPos.X, d.InitPos.Y)
+
+	screen.DrawImage(d.Frames[d.CurrentFrame], &op)
 
 }
