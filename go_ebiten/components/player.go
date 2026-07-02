@@ -42,7 +42,7 @@ func (plyr *Player) UpdatePlayer() error {
 func (plyr *Player) DrawPlayer(screen *ebiten.Image) {
 	op := &ebiten.DrawImageOptions{} //how image should look
 
-	//op.GeoM.Scale(0.5, 0.5)                                                // size adding (1, -1) rotates the image
+	op.GeoM.Scale(1.5, 1.5) // size adding (1, -1) rotates the image
 	plyrImgWidth := float64(plyr.ImgSprt.Bounds().Dx())
 	plyrImgHeight := float64(plyr.ImgSprt.Bounds().Dy())
 

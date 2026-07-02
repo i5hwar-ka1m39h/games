@@ -23,7 +23,7 @@ var dragonSprite = assets.DragonImg
 var enemy = components.NewDragon(gtypes.Vector{
 	X: float64(wndSz.Width) * 0.5,
 	Y: float64(wndSz.Height) * 0.05,
-}, 5.0, dragonSprite, 150*time.Millisecond)
+}, 2.0, dragonSprite, 150*time.Millisecond, 2*time.Second)
 
 var player = components.NewPlayer(gtypes.Vector{
 	X: float64(wndSz.Width) * 0.5,
@@ -42,7 +42,7 @@ type Game struct {
 func (game *Game) Update() error {
 	background.UpdateBackground()
 	player.UpdatePlayer()
-	enemy.UpdateEnemy()
+	enemy.UpdateEnemy(wndSz.Width, wndSz.Height)
 
 	return nil
 }
