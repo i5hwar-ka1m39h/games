@@ -19,8 +19,9 @@ type Dragon struct {
 	Frames       []*ebiten.Image
 	CurrentFrame int
 
-	Timer         utils.Timer
-	MovementTimer utils.Timer
+	Timer          utils.Timer
+	MovementTimer  utils.Timer
+	AttactInterval utils.Timer
 }
 
 func NewDragon(
@@ -29,6 +30,7 @@ func NewDragon(
 	fullImage *ebiten.Image,
 	animTime time.Duration,
 	moveTime time.Duration,
+	attactTime time.Duration,
 ) *Dragon {
 
 	imgWidth := fullImage.Bounds().Dx()
@@ -53,12 +55,13 @@ func NewDragon(
 	}
 
 	d := &Dragon{
-		InitPos:       initPos,
-		EnemySpeed:    speed,
-		Frames:        frames,
-		CurrentFrame:  0,
-		Timer:         *utils.NewTimer(animTime),
-		MovementTimer: *utils.NewTimer(moveTime),
+		InitPos:        initPos,
+		EnemySpeed:     speed,
+		Frames:         frames,
+		CurrentFrame:   0,
+		Timer:          *utils.NewTimer(animTime),
+		MovementTimer:  *utils.NewTimer(moveTime),
+		AttactInterval: *utils.NewTimer(attactTime),
 	}
 
 	// Give it an initial direction
@@ -158,4 +161,3 @@ func (d *Dragon) DrawEnemy(screen *ebiten.Image) {
 
 	screen.DrawImage(d.Frames[d.CurrentFrame], op)
 }
-

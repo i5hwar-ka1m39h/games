@@ -1,21 +1,26 @@
 package components
 
 import (
+	"time"
+
 	"github.com/hajimehoshi/ebiten/v2"
 	gtypes "github.com/i5hwar-ka1m39h/games/go_ebiten/g_types"
+	"github.com/i5hwar-ka1m39h/games/go_ebiten/utils"
 )
 
 type Player struct {
-	InitPos gtypes.Vector
-	Speed   float64
-	ImgSprt *ebiten.Image
+	InitPos      gtypes.Vector
+	Speed        float64
+	ImgSprt      *ebiten.Image
+	ShotCoolDown *utils.Timer
 }
 
-func NewPlayer(initPos gtypes.Vector, speed float64, img *ebiten.Image) *Player {
+func NewPlayer(initPos gtypes.Vector, speed float64, img *ebiten.Image, coolDwntime time.Duration) *Player {
 	return &Player{
-		InitPos: initPos,
-		Speed:   speed,
-		ImgSprt: img,
+		InitPos:      initPos,
+		Speed:        speed,
+		ImgSprt:      img,
+		ShotCoolDown: utils.NewTimer(coolDwntime),
 	}
 }
 func (plyr *Player) UpdatePlayer() error {
@@ -36,7 +41,12 @@ func (plyr *Player) UpdatePlayer() error {
 	if ebiten.IsKeyPressed(ebiten.KeyArrowRight) {
 		plyr.InitPos.X += speed
 	}
+
 	return nil
+}
+
+func (plyr *Player) WantToShoot() bool {
+	return ebiten.IsKeyPressed(ebiten.KeySpace)
 }
 
 func (plyr *Player) DrawPlayer(screen *ebiten.Image) {
