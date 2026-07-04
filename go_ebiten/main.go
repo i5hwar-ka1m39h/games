@@ -119,7 +119,7 @@ func main() {
 	}
 
 	ebiten.SetWindowSize(game.WindowSize.Width, game.WindowSize.Height)
-	ebiten.SetWindowTitle("Gutterize")
+	ebiten.SetWindowTitle("Rulers of the Sky")
 
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatalln("error starting the game", err)
