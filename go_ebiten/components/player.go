@@ -13,6 +13,7 @@ type Player struct {
 	Speed        float64
 	ImgSprt      *ebiten.Image
 	ShotCoolDown *utils.Timer
+	Health       int
 }
 
 func NewPlayer(initPos gtypes.Vector, speed float64, img *ebiten.Image, coolDwntime time.Duration) *Player {
@@ -21,7 +22,16 @@ func NewPlayer(initPos gtypes.Vector, speed float64, img *ebiten.Image, coolDwnt
 		Speed:        speed,
 		ImgSprt:      img,
 		ShotCoolDown: utils.NewTimer(coolDwntime),
+		Health:       100,
 	}
+}
+
+func (plyr *Player) ReduceHealth() {
+	plyr.Health--
+}
+
+func (plyr *Player) IncreaseHealth() {
+	plyr.Health++
 }
 func (plyr *Player) UpdatePlayer() error {
 	speed := plyr.Speed
@@ -64,4 +74,9 @@ func (plyr *Player) DrawPlayer(screen *ebiten.Image) {
 
 	screen.DrawImage(plyr.ImgSprt, op)
 
+}
+
+func (plyr *Player) Collision() *utils.Rect {
+	bounds := plyr.ImgSprt.Bounds()
+	return utils.NewRect(plyr.InitPos.X, plyr.InitPos.Y, float64(bounds.Dx()), float64(bounds.Dy()))
 }

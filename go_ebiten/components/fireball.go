@@ -91,3 +91,8 @@ func (fb *FireBall) Draw(screen *ebiten.Image) {
 
 	screen.DrawImage(frame, op)
 }
+
+func (fb *FireBall) Collision() *utils.Rect {
+	bounds := fb.Frames[fb.CurrentFrame].Bounds()
+	return utils.NewRect(fb.InitPos.X, fb.InitPos.Y, float64(bounds.Dx()), float64(bounds.Dy()))
+}

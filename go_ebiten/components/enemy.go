@@ -22,6 +22,7 @@ type Dragon struct {
 	Timer          utils.Timer
 	MovementTimer  utils.Timer
 	AttactInterval utils.Timer
+	Health         int
 }
 
 func NewDragon(
@@ -62,6 +63,7 @@ func NewDragon(
 		Timer:          *utils.NewTimer(animTime),
 		MovementTimer:  *utils.NewTimer(moveTime),
 		AttactInterval: *utils.NewTimer(attactTime),
+		Health:         100,
 	}
 
 	// Give it an initial direction
@@ -70,6 +72,13 @@ func NewDragon(
 	return d
 }
 
+func (d *Dragon) ReduceHealth() {
+	d.Health--
+}
+
+func (d *Dragon) IncreaseHealth() {
+	d.Health++
+}
 func (d *Dragon) ChangeDirection() {
 	x := rand.Float64()*2 - 1
 	y := rand.Float64()*2 - 1
@@ -160,4 +169,9 @@ func (d *Dragon) DrawEnemy(screen *ebiten.Image) {
 	op.GeoM.Translate(d.InitPos.X, d.InitPos.Y)
 
 	screen.DrawImage(d.Frames[d.CurrentFrame], op)
+}
+
+func (d *Dragon) Collision() *utils.Rect {
+	bounds := d.Frames[d.CurrentFrame].Bounds()
+	return utils.NewRect(d.InitPos.X, d.InitPos.Y, float64(bounds.Dx()), float64(bounds.Dy()))
 }

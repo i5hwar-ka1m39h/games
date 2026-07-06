@@ -40,3 +40,8 @@ func (b *Bullet) Draw(screen *ebiten.Image) {
 
 	screen.DrawImage(b.Sprite, &op)
 }
+
+func (b *Bullet) Collision() *utils.Rect {
+	bounds := b.Sprite.Bounds()
+	return utils.NewRect(b.InitPos.X, b.InitPos.Y, float64(bounds.Dx()), float64(bounds.Dy()))
+}
