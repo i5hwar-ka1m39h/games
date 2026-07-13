@@ -31,12 +31,12 @@ var firballSprite = assets.FireballImg
 var enemy = components.NewDragon(gtypes.Vector{
 	X: float64(wndSz.Width) * 0.5,
 	Y: float64(wndSz.Height) * 0.05,
-}, 2.0, dragonSprite, 150*time.Millisecond, 2*time.Second, 2*time.Second)
+}, 2.0, dragonSprite, 150*time.Millisecond, 2*time.Second, 1*time.Second)
 
 var player = components.NewPlayer(gtypes.Vector{
 	X: float64(wndSz.Width) * 0.5,
 	Y: float64(wndSz.Height) * 0.8,
-}, 5.0, playersprite, 150*time.Millisecond)
+}, 5.0, playersprite, 500*time.Millisecond)
 
 var background = components.NewBackground(bgSpite, 2.0)
 

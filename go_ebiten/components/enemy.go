@@ -22,6 +22,7 @@ type Dragon struct {
 	Timer          utils.Timer
 	MovementTimer  utils.Timer
 	AttactInterval utils.Timer
+	HitTimer       utils.Timer
 	Health         int
 	Finished       bool
 }
@@ -64,18 +65,21 @@ func NewDragon(
 		Timer:          *utils.NewTimer(animTime),
 		MovementTimer:  *utils.NewTimer(moveTime),
 		AttactInterval: *utils.NewTimer(attactTime),
+		HitTimer:       *utils.NewTimer(200 * time.Millisecond),
 		Health:         10000,
 		Finished:       false,
 	}
 
 	// Give it an initial direction
 	d.ChangeDirection()
+	d.HitTimer.Update()
 
 	return d
 }
 
 func (d *Dragon) ReduceHealth() {
 	d.Health--
+	d.HitTimer.Reset()
 }
 
 func (d *Dragon) IncreaseHealth() {
@@ -101,6 +105,7 @@ func (d *Dragon) ChangeDirection() {
 func (d *Dragon) UpdateEnemy(screenWidth, screenHeight int) {
 
 	d.Timer.Update()
+	d.HitTimer.Update()
 
 	if d.Timer.IsReady() {
 		d.CurrentFrame++
@@ -158,7 +163,22 @@ func (d *Dragon) DrawEnemy(screen *ebiten.Image) {
 
 	op.GeoM.Translate(d.InitPos.X, d.InitPos.Y)
 
-	screen.DrawImage(d.Frames[d.CurrentFrame], op)
+	if !d.HitTimer.IsReady() {
+		offsets := []float64{-3, -1.5, 1.5, 3}
+		for _, offset := range offsets {
+			blurOp := *op
+			blurOp.GeoM.Translate(offset, 0) // Shift horizontally
+
+			// Draw with 25% opacity
+			blurOp.ColorScale.Scale(1, 1, 1, 0.25)
+			screen.DrawImage(d.Frames[d.CurrentFrame], &blurOp)
+
+		}
+	} else {
+
+		screen.DrawImage(d.Frames[d.CurrentFrame], op)
+	}
+
 }
 
 func (d *Dragon) Collision() *utils.Rect {

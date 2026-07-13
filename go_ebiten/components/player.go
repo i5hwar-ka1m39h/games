@@ -13,23 +13,28 @@ type Player struct {
 	Speed        float64
 	ImgSprt      *ebiten.Image
 	ShotCoolDown *utils.Timer
+	HitTimer     utils.Timer
 	Health       int
 	Finished     bool
 }
 
 func NewPlayer(initPos gtypes.Vector, speed float64, img *ebiten.Image, coolDwntime time.Duration) *Player {
-	return &Player{
+	p := &Player{
 		InitPos:      initPos,
 		Speed:        speed,
 		ImgSprt:      img,
 		ShotCoolDown: utils.NewTimer(coolDwntime),
+		HitTimer:     *utils.NewTimer(200 * time.Millisecond),
 		Health:       10000,
 		Finished:     false,
 	}
+	p.HitTimer.Update()
+	return p
 }
 
 func (plyr *Player) ReduceHealth() {
 	plyr.Health--
+	plyr.HitTimer.Reset()
 }
 
 func (plyr *Player) IncreaseHealth() {
@@ -37,6 +42,7 @@ func (plyr *Player) IncreaseHealth() {
 }
 func (plyr *Player) UpdatePlayer() error {
 	speed := plyr.Speed
+	plyr.HitTimer.Update()
 
 	if ebiten.IsKeyPressed(ebiten.KeyArrowUp) {
 		plyr.InitPos.Y -= speed
@@ -64,6 +70,13 @@ func (plyr *Player) WantToShoot() bool {
 func (plyr *Player) DrawPlayer(screen *ebiten.Image) {
 	if plyr.Finished {
 		return
+	}
+
+	if !plyr.HitTimer.IsReady() {
+		currentTime := time.Now().UnixNano() / int64(time.Millisecond)
+		if (currentTime / 50) % 2 == 0 {
+			return
+		}
 	}
 	op := &ebiten.DrawImageOptions{} //how image should look
 
