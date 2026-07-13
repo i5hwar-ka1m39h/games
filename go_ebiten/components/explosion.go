@@ -16,9 +16,10 @@ type Explosion struct {
 	CurrentFrame int
 	Timer        *utils.Timer
 	Finished     bool
+	Scale        float64
 }
 
-func NewExplosion(initPos gtypes.Vector) *Explosion {
+func NewExplosion(initPos gtypes.Vector, scale float64) *Explosion {
 	expSprite := assets.ExplosionImg
 
 	var frames []*ebiten.Image
@@ -44,6 +45,7 @@ func NewExplosion(initPos gtypes.Vector) *Explosion {
 		CurrentFrame: 0,
 		Timer:        utils.NewTimer(150 * time.Millisecond),
 		Finished:     false,
+		Scale:        scale,
 	}
 
 }
@@ -74,10 +76,12 @@ func (exp *Explosion) Draw(screen *ebiten.Image) {
 	}
 	op := ebiten.DrawImageOptions{}
 
-	halfImgWidth := exp.Frames[exp.CurrentFrame].Bounds().Dx() / 2
-	halfImgHeight := exp.Frames[exp.CurrentFrame].Bounds().Dy() / 2
+	halfImgWidth := float64(exp.Frames[exp.CurrentFrame].Bounds().Dx()) / 2
+	halfImgHeight := float64(exp.Frames[exp.CurrentFrame].Bounds().Dy()) / 2
 
-	op.GeoM.Translate(exp.InitPos.X-float64(halfImgWidth), exp.InitPos.Y-float64(halfImgHeight))
+	op.GeoM.Translate(-halfImgWidth, -halfImgHeight)
+	op.GeoM.Scale(exp.Scale, exp.Scale)
+	op.GeoM.Translate(exp.InitPos.X, exp.InitPos.Y)
 
 	screen.DrawImage(exp.Frames[exp.CurrentFrame], &op)
 }

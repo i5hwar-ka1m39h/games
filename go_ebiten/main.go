@@ -79,13 +79,15 @@ func (game *Game) Update() error {
 		bullet.Update()
 	}
 
-	enemy.AttactInterval.Update()
-	if enemy.AttactInterval.IsReady() {
-		enemy.AttactInterval.Reset()
+	if !enemy.Finished {
+		enemy.AttactInterval.Update()
+		if enemy.AttactInterval.IsReady() {
+			enemy.AttactInterval.Reset()
 
-		fireBalltimer := utils.NewTimer(200 * time.Millisecond)
-		fireBall := components.NewFireball(fireballPos, firballSprite, 8.00, *fireBalltimer)
-		game.FireBalls = append(game.FireBalls, fireBall)
+			fireBalltimer := utils.NewTimer(200 * time.Millisecond)
+			fireBall := components.NewFireball(fireballPos, firballSprite, 8.00, *fireBalltimer)
+			game.FireBalls = append(game.FireBalls, fireBall)
+		}
 	}
 
 	for _, fireball := range game.FireBalls {
@@ -99,7 +101,7 @@ func (game *Game) Update() error {
 		for j, fb := range game.FireBalls {
 			if b.Collision().Intersect(*fb.Collision()) {
 
-				explosion := components.NewExplosion(game.Bullets[i].InitPos)
+				explosion := components.NewExplosion(game.Bullets[i].InitPos, 1.0)
 				game.Explosion = append(game.Explosion, explosion)
 				game.Bullets = append(game.Bullets[:i], game.Bullets[i+1:]...)
 				game.FireBalls = append(game.FireBalls[:j], game.FireBalls[j+1:]...)
@@ -129,15 +131,15 @@ func (game *Game) Update() error {
 		}
 	}
 
-	if enemy.Health == 0 {
-		explosion := components.NewExplosion(enemy.InitPos)
+	if enemy.Health <= 0 {
+		explosion := components.NewExplosion(enemy.InitPos, 4.0)
 		game.Explosion = append(game.Explosion, explosion)
 
 		enemy.Finished = true
 	}
 
-	if player.Health == 0 {
-		explosion := components.NewExplosion(enemy.InitPos)
+	if player.Health <= 0 {
+		explosion := components.NewExplosion(player.InitPos, 4.0)
 		game.Explosion = append(game.Explosion, explosion)
 
 		player.Finished = true
