@@ -23,6 +23,7 @@ type Dragon struct {
 	MovementTimer  utils.Timer
 	AttactInterval utils.Timer
 	Health         int
+	Finished       bool
 }
 
 func NewDragon(
@@ -63,7 +64,8 @@ func NewDragon(
 		Timer:          *utils.NewTimer(animTime),
 		MovementTimer:  *utils.NewTimer(moveTime),
 		AttactInterval: *utils.NewTimer(attactTime),
-		Health:         100,
+		Health:         10000,
+		Finished:       false,
 	}
 
 	// Give it an initial direction
@@ -98,10 +100,6 @@ func (d *Dragon) ChangeDirection() {
 
 func (d *Dragon) UpdateEnemy(screenWidth, screenHeight int) {
 
-	//------------------------------------------------
-	// Animate sprite
-	//------------------------------------------------
-
 	d.Timer.Update()
 
 	if d.Timer.IsReady() {
@@ -114,10 +112,6 @@ func (d *Dragon) UpdateEnemy(screenWidth, screenHeight int) {
 		d.Timer.Reset()
 	}
 
-	//------------------------------------------------
-	// Change direction every few seconds
-	//------------------------------------------------
-
 	d.MovementTimer.Update()
 
 	if d.MovementTimer.IsReady() {
@@ -125,16 +119,9 @@ func (d *Dragon) UpdateEnemy(screenWidth, screenHeight int) {
 		d.MovementTimer.Reset()
 	}
 
-	//------------------------------------------------
-	// Move every frame
-	//------------------------------------------------
-
 	d.InitPos.X += d.Velocity.X * d.EnemySpeed
 	d.InitPos.Y += d.Velocity.Y * d.EnemySpeed
 
-	//------------------------------------------------
-	// Bounce from walls
-	//------------------------------------------------
 	left := 0.0
 	right := float64(screenWidth - d.Frames[d.CurrentFrame].Bounds().Dx())
 
@@ -164,6 +151,9 @@ func (d *Dragon) UpdateEnemy(screenWidth, screenHeight int) {
 }
 
 func (d *Dragon) DrawEnemy(screen *ebiten.Image) {
+	if d.Finished {
+		return
+	}
 	op := &ebiten.DrawImageOptions{}
 
 	op.GeoM.Translate(d.InitPos.X, d.InitPos.Y)

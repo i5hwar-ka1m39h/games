@@ -14,6 +14,7 @@ type Player struct {
 	ImgSprt      *ebiten.Image
 	ShotCoolDown *utils.Timer
 	Health       int
+	Finished     bool
 }
 
 func NewPlayer(initPos gtypes.Vector, speed float64, img *ebiten.Image, coolDwntime time.Duration) *Player {
@@ -22,7 +23,8 @@ func NewPlayer(initPos gtypes.Vector, speed float64, img *ebiten.Image, coolDwnt
 		Speed:        speed,
 		ImgSprt:      img,
 		ShotCoolDown: utils.NewTimer(coolDwntime),
-		Health:       100,
+		Health:       10000,
+		Finished:     false,
 	}
 }
 
@@ -60,6 +62,9 @@ func (plyr *Player) WantToShoot() bool {
 }
 
 func (plyr *Player) DrawPlayer(screen *ebiten.Image) {
+	if plyr.Finished {
+		return
+	}
 	op := &ebiten.DrawImageOptions{} //how image should look
 
 	op.GeoM.Scale(1.5, 1.5) // size adding (1, -1) rotates the image
