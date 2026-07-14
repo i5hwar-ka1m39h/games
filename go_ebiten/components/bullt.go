@@ -30,6 +30,9 @@ func (b *Bullet) Update() error {
 }
 
 func (b *Bullet) Draw(screen *ebiten.Image) {
+	if !b.IsAlive {
+		return
+	}
 
 	op := ebiten.DrawImageOptions{}
 
@@ -43,5 +46,5 @@ func (b *Bullet) Draw(screen *ebiten.Image) {
 
 func (b *Bullet) Collision() *utils.Rect {
 	bounds := b.Sprite.Bounds()
-	return utils.NewRect(b.InitPos.X, b.InitPos.Y, float64(bounds.Dx()), float64(bounds.Dy()))
+	return utils.NewRect(b.InitPos.X, b.InitPos.Y-float64(bounds.Dy()), float64(bounds.Dx()), float64(bounds.Dy()))
 }

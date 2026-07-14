@@ -25,7 +25,7 @@ func NewPlayer(initPos gtypes.Vector, speed float64, img *ebiten.Image, coolDwnt
 		ImgSprt:      img,
 		ShotCoolDown: utils.NewTimer(coolDwntime),
 		HitTimer:     *utils.NewTimer(200 * time.Millisecond),
-		Health:       10000,
+		Health:       100,
 		Finished:     false,
 	}
 	p.HitTimer.Update()
@@ -74,7 +74,7 @@ func (plyr *Player) DrawPlayer(screen *ebiten.Image) {
 
 	if !plyr.HitTimer.IsReady() {
 		currentTime := time.Now().UnixNano() / int64(time.Millisecond)
-		if (currentTime / 50) % 2 == 0 {
+		if (currentTime/50)%2 == 0 {
 			return
 		}
 	}

@@ -43,7 +43,7 @@ func NewExplosion(initPos gtypes.Vector, scale float64) *Explosion {
 		InitPos:      initPos,
 		Frames:       frames,
 		CurrentFrame: 0,
-		Timer:        utils.NewTimer(150 * time.Millisecond),
+		Timer:        utils.NewTimer(50 * time.Millisecond),
 		Finished:     false,
 		Scale:        scale,
 	}

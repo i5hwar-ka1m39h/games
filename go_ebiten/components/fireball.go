@@ -15,6 +15,7 @@ type FireBall struct {
 	Speed        float64
 	CurrentFrame int
 	Timer        utils.Timer
+	IsAlive      bool
 }
 
 func NewFireball(initPos gtypes.Vector, img *ebiten.Image, speed float64, timer utils.Timer) *FireBall {
@@ -46,6 +47,7 @@ func NewFireball(initPos gtypes.Vector, img *ebiten.Image, speed float64, timer 
 		Speed:        speed,
 		CurrentFrame: 0,
 		Timer:        timer,
+		IsAlive:      true,
 	}
 }
 
@@ -65,6 +67,9 @@ func (fb *FireBall) Update() error {
 	return nil
 }
 func (fb *FireBall) Draw(screen *ebiten.Image) {
+	if !fb.IsAlive {
+		return
+	}
 	op := &ebiten.DrawImageOptions{}
 
 	scale := 0.2
@@ -94,5 +99,8 @@ func (fb *FireBall) Draw(screen *ebiten.Image) {
 
 func (fb *FireBall) Collision() *utils.Rect {
 	bounds := fb.Frames[fb.CurrentFrame].Bounds()
-	return utils.NewRect(fb.InitPos.X, fb.InitPos.Y, float64(bounds.Dx()), float64(bounds.Dy()))
+	scale := 0.2
+	visW := float64(bounds.Dy()) * scale
+	visH := float64(bounds.Dx()) * scale
+	return utils.NewRect(fb.InitPos.X-visW/2, fb.InitPos.Y-visH/2, visW, visH)
 }

@@ -66,7 +66,7 @@ func NewDragon(
 		MovementTimer:  *utils.NewTimer(moveTime),
 		AttactInterval: *utils.NewTimer(attactTime),
 		HitTimer:       *utils.NewTimer(200 * time.Millisecond),
-		Health:         10000,
+		Health:         100,
 		Finished:       false,
 	}
 
