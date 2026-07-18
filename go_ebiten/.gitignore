@@ -31,3 +31,4 @@ go.work.sum
 # .idea/
 # .vscode/
 
+# Pre-built WASM will be committed, no gitignore needed
