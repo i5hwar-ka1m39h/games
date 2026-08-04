@@ -3,6 +3,7 @@
 #include <SDL2/SDL_error.h>
 #include <SDL2/SDL_events.h>
 #include <SDL2/SDL_hints.h>
+#include <SDL2/SDL_keycode.h>
 #include <SDL2/SDL_pixels.h>
 #include <SDL2/SDL_rect.h>
 #include <SDL2/SDL_render.h>
@@ -28,6 +29,7 @@ typedef struct {
 typedef struct {
   int x;
   int y;
+  float angle;
 } PlayerPos;
 
 int maze[MAZE_ROW][MAZE_COL] = {
@@ -39,9 +41,9 @@ int maze[MAZE_ROW][MAZE_COL] = {
     {1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
     {1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
     {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-    {1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-    {1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-    {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
+    {1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0, 1},
+    {1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 1},
+    {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1},
     {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
     {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
     {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
@@ -60,30 +62,61 @@ bool Is_wall(int row, int col) {
 }
 void RenderBlock(App *app) {
   int block_height = SCREEN_HEIGHT / MAZE_ROW;
-  int block_width = SCREEN_WIDTH / MAZE_COL;
+  int block_width = SCREEN_HEIGHT / MAZE_COL;
 
   for (int i = 0; i < MAZE_ROW; i++) {
     for (int j = 0; j < MAZE_COL; j++) {
-      SDL_Rect block = {i * block_width, j * block_height, block_width,
-                        block_height};
+      SDL_Rect block = {j * block_width, i * block_height, block_width - 1,
+                        block_height - 1};
 
-			Uint8 col;
-			if(Is_wall(i, j)){
-					col = 255;
-			}else{
-				col = 0;
-			}
+      Uint8 col;
+      if (Is_wall(i, j)) {
+        col = 255;
+      } else {
+        col = 0;
+      }
       SDL_SetRenderDrawColor(app->rndr, col, 0, 0, 255);
 
       SDL_RenderFillRect(app->rndr, &block);
     }
   }
+}
 
-  SDL_RenderPresent(app->rndr);
+void RenderPlayer(App *app, PlayerPos *plyr) {
+  SDL_Rect plybox = {plyr->x, plyr->y, 10, 10};
+  SDL_SetRenderDrawColor(app->rndr, 0, 255, 0, 255);
+  SDL_RenderFillRect(app->rndr, &plybox);
+}
+
+void Moveplayer(PlayerPos *plyr, SDL_Event *ev) {
+  if (ev->type == SDL_KEYDOWN) {
+    switch (ev->key.keysym.sym) {
+
+    case SDLK_w:
+      plyr->y = plyr->y - 5;
+      break;
+    case SDLK_s:
+      plyr->y = plyr->y + 5;
+      break;
+    case SDLK_a:
+      plyr->x = plyr->x - 5;
+      break;
+    case SDLK_d:
+      plyr->x = plyr->x + 5;
+      break;
+    case SDLK_LEFT:
+      plyr->angle = plyr->angle - 0.5;
+      break;
+    default:
+      break;
+    }
+  }
 }
 int main() {
 
   App app;
+
+  PlayerPos plyr = {80, 80, 0.0};
   if (SDL_Init(SDL_INIT_VIDEO) < 0) {
     printf("error occured while initializing sdl %s", SDL_GetError());
     exit(1);
@@ -105,17 +138,14 @@ int main() {
     exit(1);
   }
 
-  SDL_Surface *surface = SDL_GetWindowSurface(app.wndw);
-
-  SDL_FillRect(surface, NULL, SDL_MapRGB(surface->format, 0xFF, 0xFF, 0xFF));
-
-  SDL_UpdateWindowSurface(app.wndw);
+  SDL_SetRenderDrawColor(app.rndr, 0, 0, 0, 0);
 
   SDL_RenderClear(app.rndr);
 
-  SDL_RenderPresent(app.rndr);
-
   RenderBlock(&app);
+  RenderPlayer(&app, &plyr);
+
+  SDL_RenderPresent(app.rndr);
 
   SDL_Event e;
   bool quit = false;
@@ -124,8 +154,17 @@ int main() {
       if (e.type == SDL_QUIT) {
         printf("quited the window");
         quit = true;
-      }
+      }else{
+				Moveplayer(&plyr, &e);
+			}
     }
+
+    SDL_SetRenderDrawColor(app.rndr, 0, 0, 0, 0);
+    SDL_RenderClear(app.rndr);
+
+    RenderBlock(&app);
+    RenderPlayer(&app, &plyr);
+    SDL_RenderPresent(app.rndr);
   }
 
   SDL_DestroyRenderer(app.rndr);
