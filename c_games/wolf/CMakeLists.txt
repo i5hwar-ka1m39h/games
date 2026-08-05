@@ -8,4 +8,4 @@ find_package(SDL2 REQUIRED)
 add_executable(wolf main.c)
 
 target_include_directories(wolf PRIVATE ${SDL2_INCLUDE_DIRS})
-target_link_libraries(wolf PRIVATE ${SDL2_LIBRARIES})
+target_link_libraries(wolf PRIVATE ${SDL2_LIBRARIES} m)

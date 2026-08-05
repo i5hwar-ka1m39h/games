@@ -10,6 +10,7 @@
 #include <SDL2/SDL_surface.h>
 #include <SDL2/SDL_timer.h>
 #include <SDL2/SDL_video.h>
+#include <math.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -78,6 +79,8 @@ void RenderBlock(App *app) {
       SDL_SetRenderDrawColor(app->rndr, col, 0, 0, 255);
 
       SDL_RenderFillRect(app->rndr, &block);
+
+
     }
   }
 }
@@ -86,6 +89,15 @@ void RenderPlayer(App *app, PlayerPos *plyr) {
   SDL_Rect plybox = {plyr->x, plyr->y, 10, 10};
   SDL_SetRenderDrawColor(app->rndr, 0, 255, 0, 255);
   SDL_RenderFillRect(app->rndr, &plybox);
+
+	int startptX = plyr->x + 10/2;
+	int startptY = plyr->y + 10/2;
+
+	int endptX = startptX + cos(plyr->angle)*10;
+	int endptY = startptY + sin(plyr->angle)*10;
+
+  SDL_SetRenderDrawColor(app->rndr, 0, 0, 255, 255);
+	SDL_RenderDrawLine(app->rndr, startptX, startptY, endptX, endptY);
 }
 
 void Moveplayer(PlayerPos *plyr, SDL_Event *ev) {
@@ -106,6 +118,9 @@ void Moveplayer(PlayerPos *plyr, SDL_Event *ev) {
       break;
     case SDLK_LEFT:
       plyr->angle = plyr->angle - 0.5;
+      break;
+    case SDLK_RIGHT:
+      plyr->angle = plyr->angle + 0.5;
       break;
     default:
       break;
@@ -138,7 +153,7 @@ int main() {
     exit(1);
   }
 
-  SDL_SetRenderDrawColor(app.rndr, 0, 0, 0, 0);
+  SDL_SetRenderDrawColor(app.rndr, 255, 255, 255, 255);
 
   SDL_RenderClear(app.rndr);
 
@@ -159,7 +174,7 @@ int main() {
 			}
     }
 
-    SDL_SetRenderDrawColor(app.rndr, 0, 0, 0, 0);
+    SDL_SetRenderDrawColor(app.rndr, 255,255,255,255);
     SDL_RenderClear(app.rndr);
 
     RenderBlock(&app);
