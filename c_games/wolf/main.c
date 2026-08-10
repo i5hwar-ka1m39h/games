@@ -131,14 +131,11 @@ void RenderLine(App *app, PlayerPos *plyr) {
   SDL_RenderDrawLine(app->rndr, plyr->x + 5, plyr->y + 5, (int)rayX, (int)rayY);
 }
 
-void RenderLineDDA(App *app, PlayerPos *plyr) {
+void RenderLineDDA(App *app, PlayerPos *plyr, float dir_x, float dir_y) {
   const float block_size = (float)SCREEN_HEIGHT / MAZE_ROW;
 
   const float start_x = plyr->x + 5.0f;
   const float start_y = plyr->y + 5.0f;
-
-  const float dir_x = cosf(plyr->angle);
-  const float dir_y = sinf(plyr->angle);
 
   // ---------- vertical wall scan ----------
 
@@ -232,6 +229,28 @@ void RenderLineDDA(App *app, PlayerPos *plyr) {
   SDL_RenderDrawLine(app->rndr, start_x, start_y, nearestwallX, nearestwallY);
 }
 
+void EmitRays(App *app, PlayerPos *plyr) {
+  const float fov_scale = 0.66f;
+  const int ray_spacing = 12;
+
+  const float dir_x = cosf(plyr->angle);
+  const float dir_y = sinf(plyr->angle);
+
+  // camera plane: a line perpendicular to the facing direction
+  const float plane_x = -dir_y * fov_scale;
+  const float plane_y = dir_x * fov_scale;
+
+  // one ray every `ray_spacing` screen columns
+  for (int x = 0; x < SCREEN_WIDTH; x += ray_spacing) {
+    // -1 on the left edge, +1 on the right edge, 0 in the middle
+    float camera_x = 2.0f * x / (float)SCREEN_WIDTH - 1.0f;
+
+    RenderLineDDA(app, plyr,
+                  dir_x + plane_x * camera_x,
+                  dir_y + plane_y * camera_x);
+  }
+}
+
 void Moveplayer(PlayerPos *plyr, SDL_Event *ev) {
   if (ev->type == SDL_KEYDOWN) {
     switch (ev->key.keysym.sym) {
@@ -292,7 +311,7 @@ int main() {
   RenderBlock(&app);
   RenderPlayer(&app, &plyr);
 
-        RenderLineDDA(&app,&plyr);
+  EmitRays(&app, &plyr);
   SDL_RenderPresent(app.rndr);
 
   SDL_Event e;
@@ -312,7 +331,7 @@ int main() {
 
     RenderBlock(&app);
     RenderPlayer(&app, &plyr);
-        RenderLineDDA(&app,&plyr);
+    EmitRays(&app, &plyr);
     SDL_RenderPresent(app.rndr);
   }
 
