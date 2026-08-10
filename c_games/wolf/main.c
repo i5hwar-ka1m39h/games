@@ -14,6 +14,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <threads.h>
 
 #define SCREEN_HEIGHT 720
 #define SCREEN_WIDTH 1280
@@ -129,246 +130,106 @@ void RenderLine(App *app, PlayerPos *plyr) {
 
   SDL_RenderDrawLine(app->rndr, plyr->x + 5, plyr->y + 5, (int)rayX, (int)rayY);
 }
-void RenderLineImpr(App *app, PlayerPos *plyr) {
 
-    const float blockWidth  = (float)SCREEN_WIDTH / MAZE_COL;
-    const float blockHeight = (float)SCREEN_HEIGHT / MAZE_ROW;
+void RenderLineDDA(App *app, PlayerPos *plyr) {
+  const float block_size = (float)SCREEN_HEIGHT / MAZE_ROW;
 
-    // Player center
-    const float px = (float)plyr->x + 5.0f;
-    const float py = (float)plyr->y + 5.0f;
+  const float start_x = plyr->x + 5.0f;
+  const float start_y = plyr->y + 5.0f;
 
-    // Direction of the ray
-    const float rayDirX = cosf(plyr->angle);
-    const float rayDirY = sinf(plyr->angle);
+  const float dir_x = cosf(plyr->angle);
+  const float dir_y = sinf(plyr->angle);
 
-    /*
-     * ---------------------------------------------------------
-     * HORIZONTAL INTERSECTIONS
-     * ---------------------------------------------------------
-     */
+  // ---------- vertical wall scan ----------
 
-    float horizontalHitX = 0.0f;
-    float horizontalHitY = 0.0f;
-    float horizontalDistance = INFINITY;
+  float ver_wall_x = start_x;
+  float ver_wall_y = start_y;
+  float ver_wall_distance = INFINITY;
 
-    // Don't calculate horizontal intersections when ray is
-    // almost perfectly horizontal.
-    if (fabsf(rayDirY) > 0.0001f) {
+  if (fabsf(dir_x) > 0.0001f) {
 
-        float firstHorizontalY;
+    // first vertical grid line the ray meets
+    float current_grid_x = floorf(start_x / block_size) * block_size;
+    if (dir_x > 0) current_grid_x += block_size;
 
-        if (rayDirY > 0) {
-            // Ray is pointing DOWN
+    float dist_to_first_grid = (current_grid_x - start_x) / dir_x;
+    float current_grid_y = start_y + dist_to_first_grid * dir_y;
 
-            firstHorizontalY =
-                floorf(py / blockHeight) * blockHeight
-                + blockHeight;
-        }
-        else {
-            // Ray is pointing UP
+    // how many pixels y moves each time x crosses one grid line
+    float ver_x_step = dir_x > 0 ? block_size : -block_size;
+    float ver_y_step = ver_x_step * dir_y / dir_x;
 
-            firstHorizontalY =
-                floorf(py / blockHeight) * blockHeight;
-        }
+    while (1) {
+      // x position -> maze column, y position -> maze row
+      int maze_col = (int)(current_grid_x / block_size);
+      int maze_row = (int)(current_grid_y / block_size);
+      if (dir_x < 0) maze_col--; // going left: check the cell before the line
 
-        // How far along the ray until we reach that Y?
-        float distance =
-            (firstHorizontalY - py) / rayDirY;
+      if (Is_wall(maze_row, maze_col)) {
+        ver_wall_x = current_grid_x;
+        ver_wall_y = current_grid_y;
+        ver_wall_distance =
+            sqrtf((ver_wall_x - start_x) * (ver_wall_x - start_x) +
+                  (ver_wall_y - start_y) * (ver_wall_y - start_y));
+        break;
+      }
 
-        // X position at that distance
-        float firstHorizontalX =
-            px + distance * rayDirX;
-
-        float stepY;
-
-        if (rayDirY > 0) {
-            stepY = blockHeight;
-        }
-        else {
-            stepY = -blockHeight;
-        }
-
-        // Every next horizontal grid intersection
-        float currentX = firstHorizontalX;
-        float currentY = firstHorizontalY;
-
-        while (1) {
-
-            // Convert intersection into maze coordinates
-            int col = (int)(currentX / blockWidth);
-
-            int row;
-
-            if (rayDirY > 0) {
-                row = (int)(currentY / blockHeight);
-            }
-            else {
-                row = (int)(currentY / blockHeight) - 1;
-            }
-
-            // Did we leave the maze?
-            if (col < 0 || col >= MAZE_COL ||
-                row < 0 || row >= MAZE_ROW) {
-                break;
-            }
-
-            // Is this cell a wall?
-            if (Is_wall(row, col)) {
-
-                horizontalHitX = currentX;
-                horizontalHitY = currentY;
-
-                horizontalDistance =
-                    sqrtf(
-                        (currentX - px) * (currentX - px) +
-                        (currentY - py) * (currentY - py)
-                    );
-
-                break;
-            }
-
-            currentX += rayDirX * (stepY / rayDirY);
-            currentY += stepY;
-        }
+      current_grid_x += ver_x_step;
+      current_grid_y += ver_y_step;
     }
+  }
 
+  // ---------- horizontal wall scan ----------
 
-    /*
-     * ---------------------------------------------------------
-     * VERTICAL INTERSECTIONS
-     * ---------------------------------------------------------
-     */
+  float hor_wall_x = start_x;
+  float hor_wall_y = start_y;
+  float hor_wall_distance = INFINITY;
 
-    float verticalHitX = 0.0f;
-    float verticalHitY = 0.0f;
-    float verticalDistance = INFINITY;
+  if (fabsf(dir_y) > 0.0001f) {
 
-    // Don't calculate vertical intersections when ray is
-    // almost perfectly vertical.
-    if (fabsf(rayDirX) > 0.0001f) {
+    // first horizontal grid line the ray meets
+    float current_grid_y = floorf(start_y / block_size) * block_size;
+    if (dir_y > 0) current_grid_y += block_size;
 
-        float firstVerticalX;
+    float dist_to_first_grid = (current_grid_y - start_y) / dir_y;
+    float current_grid_x = start_x + dist_to_first_grid * dir_x;
 
-        if (rayDirX > 0) {
-            // Ray is pointing RIGHT
+    // how many pixels x moves each time y crosses one grid line
+    float hor_y_step = dir_y > 0 ? block_size : -block_size;
+    float hor_x_step = hor_y_step * dir_x / dir_y;
 
-            firstVerticalX =
-                floorf(px / blockWidth) * blockWidth
-                + blockWidth;
-        }
-        else {
-            // Ray is pointing LEFT
+    while (1) {
+      int maze_col = (int)(current_grid_x / block_size);
+      int maze_row = (int)(current_grid_y / block_size);
+      if (dir_y < 0) maze_row--; // going up: check the cell before the line
 
-            firstVerticalX =
-                floorf(px / blockWidth) * blockWidth;
-        }
+      if (Is_wall(maze_row, maze_col)) {
+        hor_wall_x = current_grid_x;
+        hor_wall_y = current_grid_y;
+        hor_wall_distance =
+            sqrtf((hor_wall_x - start_x) * (hor_wall_x - start_x) +
+                  (hor_wall_y - start_y) * (hor_wall_y - start_y));
+        break;
+      }
 
-        // How far along the ray until we reach that X?
-        float distance =
-            (firstVerticalX - px) / rayDirX;
-
-        // Y position at that distance
-        float firstVerticalY =
-            py + distance * rayDirY;
-
-        float stepX;
-
-        if (rayDirX > 0) {
-            stepX = blockWidth;
-        }
-        else {
-            stepX = -blockWidth;
-        }
-
-        float currentX = firstVerticalX;
-        float currentY = firstVerticalY;
-
-        while (1) {
-
-            int row = (int)(currentY / blockHeight);
-
-            int col;
-
-            if (rayDirX > 0) {
-                col = (int)(currentX / blockWidth);
-            }
-            else {
-                col = (int)(currentX / blockWidth) - 1;
-            }
-
-            // Did we leave the maze?
-            if (row < 0 || row >= MAZE_ROW ||
-                col < 0 || col >= MAZE_COL) {
-                break;
-            }
-
-            // Is this cell a wall?
-            if (Is_wall(row, col)) {
-
-                verticalHitX = currentX;
-                verticalHitY = currentY;
-
-                verticalDistance =
-                    sqrtf(
-                        (currentX - px) * (currentX - px) +
-                        (currentY - py) * (currentY - py)
-                    );
-
-                break;
-            }
-
-            currentX += stepX;
-            currentY += rayDirY * (stepX / rayDirX);
-        }
+      current_grid_y += hor_y_step;
+      current_grid_x += hor_x_step;
     }
+  }
 
+  // ---------- pick the nearest wall ----------
 
-    /*
-     * ---------------------------------------------------------
-     * CHOOSE THE CLOSEST HIT
-     * ---------------------------------------------------------
-     */
+  float nearestwallX, nearestwallY;
+  if (hor_wall_distance < ver_wall_distance) {
+    nearestwallX = hor_wall_x;
+    nearestwallY = hor_wall_y;
+  } else {
+    nearestwallX = ver_wall_x;
+    nearestwallY = ver_wall_y;
+  }
 
-    float hitX;
-    float hitY;
-
-    if (horizontalDistance < verticalDistance) {
-
-        // Horizontal wall is closer
-        hitX = horizontalHitX;
-        hitY = horizontalHitY;
-
-    }
-    else {
-
-        // Vertical wall is closer
-        hitX = verticalHitX;
-        hitY = verticalHitY;
-    }
-
-
-    /*
-     * ---------------------------------------------------------
-     * DRAW RAY
-     * ---------------------------------------------------------
-     */
-
-    SDL_SetRenderDrawColor(
-        app->rndr,
-        0,
-        0,
-        255,
-        255
-    );
-
-    SDL_RenderDrawLine(
-        app->rndr,
-        (int)px,
-        (int)py,
-        (int)hitX,
-        (int)hitY
-    );
+  SDL_SetRenderDrawColor(app->rndr, 0, 156, 255, 255);
+  SDL_RenderDrawLine(app->rndr, start_x, start_y, nearestwallX, nearestwallY);
 }
 
 void Moveplayer(PlayerPos *plyr, SDL_Event *ev) {
@@ -431,6 +292,7 @@ int main() {
   RenderBlock(&app);
   RenderPlayer(&app, &plyr);
 
+        RenderLineDDA(&app,&plyr);
   SDL_RenderPresent(app.rndr);
 
   SDL_Event e;
@@ -450,6 +312,7 @@ int main() {
 
     RenderBlock(&app);
     RenderPlayer(&app, &plyr);
+        RenderLineDDA(&app,&plyr);
     SDL_RenderPresent(app.rndr);
   }
 
