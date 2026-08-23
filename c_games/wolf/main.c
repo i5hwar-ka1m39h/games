@@ -7,6 +7,7 @@
 #include <SDL2/SDL_pixels.h>
 #include <SDL2/SDL_rect.h>
 #include <SDL2/SDL_render.h>
+#include <SDL2/SDL_stdinc.h>
 #include <SDL2/SDL_surface.h>
 #include <SDL2/SDL_timer.h>
 #include <SDL2/SDL_video.h>
@@ -15,13 +16,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <threads.h>
+#include <time.h>
 
 #define SCREEN_HEIGHT 720
 #define SCREEN_WIDTH 1280
 #define MAZE_COL 20
 #define MAZE_ROW 20
 #define PI 3.14159265359
-
+#define FOV_SCALE 0.66f
+#define VIEW_BLOCK (SCREEN_WIDTH / 2 / MAZE_COL)
+#define RAY_SPACING 8
+#define MOVE_SPEED 0.05f
+#define ROT_SPEED 0.04f
+#define FOG_DIST 12.0f
 typedef struct {
 
   SDL_Renderer *rndr;
@@ -29,8 +36,8 @@ typedef struct {
 } App;
 
 typedef struct {
-  int x;
-  int y;
+  float x;
+  float y;
   float angle;
 } PlayerPos;
 
@@ -60,11 +67,100 @@ bool Is_wall(int row, int col) {
   if (col < 0 || col >= MAZE_COL || row < 0 || row >= MAZE_ROW) {
     return true;
   }
-  return maze[row][col] == 1;
+  return maze[row][col] != 0;
+}
+
+bool CanMov(PlayerPos *plyr, float new_x, float new_y) {
+  // FIX: was 0.5f -> the collision box was a full 1x1 tile, so it only
+  // fit through 1-wide gaps (like "1 0 1") when PERFECTLY centered.
+  // 0.25f makes the box half a tile wide -> you can walk through gaps.
+  const float half = 0.25f;
+  int c0 = (int)floorf(new_x - half);
+  int c1 = (int)floorf(new_x + half);
+  int r0 = (int)floorf(new_y - half);
+  int r1 = (int)floorf(new_y + half);
+
+  return !(Is_wall(r0, c0) || Is_wall(r0, c1) || Is_wall(r1, c0) ||
+           Is_wall(r1, c1));
+}
+
+float Cast_ray(PlayerPos *plyr, float dir_x, float dir_y, float *hit_x,
+               float *hit_y, bool *hit_side_x, int *hit_tile) {
+  float pos_x = plyr->x;
+  float pos_y = plyr->y;
+
+  int map_x = (int)floorf(pos_x);
+  int map_y = (int)floorf(pos_y);
+
+  // if dist_x is very small val then 1e30f is very big value 1 X 10^3 else
+  // dir_x = 0.1       → 10
+  // dir_x = 0.01      → 100
+  // dir_x = 0.001     → 1000
+  // dir_x = 0.0001    → 10000
+  // dir_x = 0.00001   → 100000
+  // dir_x = 0.000001  → 1000000
+  float d_dist_x = (fabsf(dir_x) < 0.0001f) ? 1e30f : fabsf(1.0f / dir_x);
+  float d_dist_y = (fabsf(dir_y) < 0.0001f) ? 1e30f : fabsf(1.0f / dir_y);
+
+  int step_x, step_y;
+  float side_dist_x, side_dist_y;
+  if (dir_x < 0.0f) {
+    step_x = -1;
+    side_dist_x = (pos_x - map_x) * d_dist_x;
+  } else {
+    step_x = 1;
+    side_dist_x = (map_x + 1.0f - pos_x) * d_dist_x;
+  }
+  if (dir_y < 0.0f) {
+    step_y = -1;
+    side_dist_y = (pos_y - map_y) * d_dist_y;
+  } else {
+    step_y = 1;
+    side_dist_y = (map_y + 1.0f - pos_y) * d_dist_y;
+  }
+
+  int side = 0;
+  int guard = 0;
+  while (guard++ < 100) {
+    if (side_dist_x < side_dist_y) {
+      side_dist_x += d_dist_x;
+      map_x += step_x;
+      side = 0;
+    } else {
+      side_dist_y += d_dist_y;
+      map_y += step_y;
+      side = 1;
+    }
+
+    if (Is_wall(map_y, map_x))
+      break;
+  }
+
+  float perp = (side == 0) ? side_dist_x - d_dist_x : side_dist_y - d_dist_y;
+
+  if (hit_x && hit_y) {
+    if (side == 0) {
+      *hit_x = (step_x > 0) ? (float)map_x : (float)(map_x + 1);
+      *hit_y = pos_y + perp * dir_y;
+    } else {
+
+      *hit_y = (step_y > 0) ? (float)map_y : (float)(map_y + 1);
+      *hit_x = pos_x + perp * dir_x;
+    }
+  }
+
+  if (hit_side_x)
+    *hit_side_x = (side == 0);
+  if (hit_tile)
+    *hit_tile = maze[map_y][map_x];
+  return perp;
 }
 void RenderBlock(App *app) {
-  int block_height = SCREEN_HEIGHT / MAZE_ROW;
-  int block_width = SCREEN_HEIGHT / MAZE_COL;
+  // FIX: use VIEW_BLOCK (32 px), the SAME size the rays are scaled by.
+  // before it was SCREEN_HEIGHT / MAZE_* = 36 px, so the ray lines
+  // (drawn at 32 px per tile) never lined up with these squares.
+  int block_height = VIEW_BLOCK;
+  int block_width = VIEW_BLOCK;
 
   for (int i = 0; i < MAZE_ROW; i++) {
     for (int j = 0; j < MAZE_COL; j++) {
@@ -85,18 +181,24 @@ void RenderBlock(App *app) {
 }
 
 void RenderPlayer(App *app, PlayerPos *plyr) {
-  SDL_Rect plybox = {plyr->x, plyr->y, 10, 10};
+  // FIX: plyr->x/y are in TILE units (2.5 = middle of tile 2), but SDL
+  // wants PIXELS. Multiply by VIEW_BLOCK to convert, like the rays do.
+  // before, the raw floats were used as pixels, so the player was
+  // always drawn tiny in the top-left corner of the window.
+  int cx = (int)(plyr->x * VIEW_BLOCK);
+  int cy = (int)(plyr->y * VIEW_BLOCK);
+
+  // center the 10 px square ON the player's position
+  SDL_Rect plybox = {cx - 5, cy - 5, 10, 10};
   SDL_SetRenderDrawColor(app->rndr, 0, 255, 0, 255);
   SDL_RenderFillRect(app->rndr, &plybox);
 
-  int startptX = plyr->x + 10 / 2;
-  int startptY = plyr->y + 10 / 2;
-
-  int endptX = startptX + cos(plyr->angle) * 10;
-  int endptY = startptY + sin(plyr->angle) * 10;
+  // a short line from the center showing where the player looks
+  int endptX = cx + (int)(cos(plyr->angle) * 15);
+  int endptY = cy + (int)(sin(plyr->angle) * 15);
 
   SDL_SetRenderDrawColor(app->rndr, 0, 255, 0, 255);
-  SDL_RenderDrawLine(app->rndr, startptX, startptY, endptX, endptY);
+  SDL_RenderDrawLine(app->rndr, cx, cy, endptX, endptY);
 }
 
 void RenderLine(App *app, PlayerPos *plyr) {
@@ -132,157 +234,156 @@ void RenderLine(App *app, PlayerPos *plyr) {
 }
 
 void RenderLineDDA(App *app, PlayerPos *plyr, float dir_x, float dir_y) {
-  const float block_size = (float)SCREEN_HEIGHT / MAZE_ROW;
-
-  const float start_x = plyr->x + 5.0f;
-  const float start_y = plyr->y + 5.0f;
-
-  // ---------- vertical wall scan ----------
-
-  float ver_wall_x = start_x;
-  float ver_wall_y = start_y;
-  float ver_wall_distance = INFINITY;
-
-  if (fabsf(dir_x) > 0.0001f) {
-
-    // first vertical grid line the ray meets
-    float current_grid_x = floorf(start_x / block_size) * block_size;
-    if (dir_x > 0) current_grid_x += block_size;
-
-    float dist_to_first_grid = (current_grid_x - start_x) / dir_x;
-    float current_grid_y = start_y + dist_to_first_grid * dir_y;
-
-    // how many pixels y moves each time x crosses one grid line
-    float ver_x_step = dir_x > 0 ? block_size : -block_size;
-    float ver_y_step = ver_x_step * dir_y / dir_x;
-
-    while (1) {
-      // x position -> maze column, y position -> maze row
-      int maze_col = (int)(current_grid_x / block_size);
-      int maze_row = (int)(current_grid_y / block_size);
-      if (dir_x < 0) maze_col--; // going left: check the cell before the line
-
-      if (Is_wall(maze_row, maze_col)) {
-        ver_wall_x = current_grid_x;
-        ver_wall_y = current_grid_y;
-        ver_wall_distance =
-            sqrtf((ver_wall_x - start_x) * (ver_wall_x - start_x) +
-                  (ver_wall_y - start_y) * (ver_wall_y - start_y));
-        break;
-      }
-
-      current_grid_x += ver_x_step;
-      current_grid_y += ver_y_step;
-    }
-  }
-
-  // ---------- horizontal wall scan ----------
-
-  float hor_wall_x = start_x;
-  float hor_wall_y = start_y;
-  float hor_wall_distance = INFINITY;
-
-  if (fabsf(dir_y) > 0.0001f) {
-
-    // first horizontal grid line the ray meets
-    float current_grid_y = floorf(start_y / block_size) * block_size;
-    if (dir_y > 0) current_grid_y += block_size;
-
-    float dist_to_first_grid = (current_grid_y - start_y) / dir_y;
-    float current_grid_x = start_x + dist_to_first_grid * dir_x;
-
-    // how many pixels x moves each time y crosses one grid line
-    float hor_y_step = dir_y > 0 ? block_size : -block_size;
-    float hor_x_step = hor_y_step * dir_x / dir_y;
-
-    while (1) {
-      int maze_col = (int)(current_grid_x / block_size);
-      int maze_row = (int)(current_grid_y / block_size);
-      if (dir_y < 0) maze_row--; // going up: check the cell before the line
-
-      if (Is_wall(maze_row, maze_col)) {
-        hor_wall_x = current_grid_x;
-        hor_wall_y = current_grid_y;
-        hor_wall_distance =
-            sqrtf((hor_wall_x - start_x) * (hor_wall_x - start_x) +
-                  (hor_wall_y - start_y) * (hor_wall_y - start_y));
-        break;
-      }
-
-      current_grid_y += hor_y_step;
-      current_grid_x += hor_x_step;
-    }
-  }
-
-  // ---------- pick the nearest wall ----------
-
-  float nearestwallX, nearestwallY;
-  if (hor_wall_distance < ver_wall_distance) {
-    nearestwallX = hor_wall_x;
-    nearestwallY = hor_wall_y;
-  } else {
-    nearestwallX = ver_wall_x;
-    nearestwallY = ver_wall_y;
-  }
+  float hit_x, hit_y;
+  Cast_ray(plyr, dir_x, dir_y, &hit_x, &hit_y, NULL, NULL);
 
   SDL_SetRenderDrawColor(app->rndr, 0, 156, 255, 255);
-  SDL_RenderDrawLine(app->rndr, start_x, start_y, nearestwallX, nearestwallY);
+  SDL_RenderDrawLine(app->rndr, (int)(plyr->x * VIEW_BLOCK),
+                     (int)(plyr->y * VIEW_BLOCK), (int)(hit_x * VIEW_BLOCK),
+                     (int)(hit_y * VIEW_BLOCK));
 }
 
 void EmitRays(App *app, PlayerPos *plyr) {
-  const float fov_scale = 0.66f;
-  const int ray_spacing = 12;
 
   const float dir_x = cosf(plyr->angle);
   const float dir_y = sinf(plyr->angle);
 
   // camera plane: a line perpendicular to the facing direction
-  const float plane_x = -dir_y * fov_scale;
-  const float plane_y = dir_x * fov_scale;
+  const float plane_x = -dir_y * FOV_SCALE;
+  const float plane_y = dir_x * FOV_SCALE;
 
   // one ray every `ray_spacing` screen columns
-  for (int x = 0; x < SCREEN_WIDTH; x += ray_spacing) {
+  for (int x = 0; x < SCREEN_WIDTH; x += RAY_SPACING) {
     // -1 on the left edge, +1 on the right edge, 0 in the middle
     float camera_x = 2.0f * x / (float)SCREEN_WIDTH - 1.0f;
 
-    RenderLineDDA(app, plyr,
-                  dir_x + plane_x * camera_x,
+    RenderLineDDA(app, plyr, dir_x + plane_x * camera_x,
                   dir_y + plane_y * camera_x);
   }
 }
 
+void TileColor(int tile, Uint8 *r, Uint8 *g, Uint8 *b) {
+  switch (tile) {
+
+  case 1:
+    *r = 169, *g = 169, *b = 169;
+    break;
+
+  case 2:
+    *r = 255, *g = 0, *b = 0;
+    break;
+  case 3:
+    *r = 0, *g = 0, *b = 255;
+    break;
+  case 4:
+    *r = 0, *g = 255, *b = 0;
+    break;
+  case 5:
+    *r = 255, *g = 0, *b = 255;
+    break;
+  default:
+    *r = 0, *g = 0, *b = 0;
+    break;
+  }
+}
+
+void Render3D(App *app, PlayerPos *plyr) {
+  const int halfW = SCREEN_WIDTH / 2;
+  const float dir_x = cosf(plyr->angle);
+  const float dir_y = sinf(plyr->angle);
+
+  const float plane_x = -dir_y * FOV_SCALE;
+  const float plane_y = dir_x * FOV_SCALE;
+
+  SDL_Rect right_rect = {halfW, 0, halfW, SCREEN_HEIGHT};
+  SDL_SetRenderDrawColor(app->rndr, 0, 0, 0, 255);
+  SDL_RenderFillRect(app->rndr, &right_rect);
+
+  for (int x = 0; x < halfW; x++) {
+    float camera_x = 2.0f * x / (float)halfW - 1.0f;
+    float ray_x = dir_x + plane_x * camera_x;
+    float ray_y = dir_y + plane_y * camera_x;
+
+    int hit_tile;
+    float perp = Cast_ray(plyr, ray_x, ray_y, NULL, NULL, NULL, &hit_tile);
+
+    Uint8 base_r, base_g, base_b;
+TileColor(hit_tile, &base_r, &base_g, &base_b);
+
+    // FIX: perp can be ~0 when a wall is right next to us, and
+    // dividing by 0 gives an invalid huge number. clamp it to tiny.
+    if (perp < 0.0001f)
+      perp = 0.0001f;
+
+    int line_height = (int)(SCREEN_HEIGHT/ perp);
+    int draw_start = -line_height/2+ SCREEN_HEIGHT/2;
+    if(draw_start < 0) draw_start = 0;
+    int draw_end = line_height / 2 + SCREEN_HEIGHT / 2;
+    if( draw_end >= SCREEN_HEIGHT) draw_end = SCREEN_HEIGHT-1;
+
+    float t = perp/ FOG_DIST;
+    if(t > 1.0f) t = 1.0f;
+    float shade = 1.0f -t;
+    
+
+    SDL_SetRenderDrawColor(app->rndr, base_r*shade, base_g*shade, base_b*shade, 255);
+    SDL_RenderDrawLine(app->rndr,halfW+x, draw_start, halfW+x, draw_end);
+  }
+}
+
 void Moveplayer(PlayerPos *plyr, SDL_Event *ev) {
+
+  float dx = 0.0f, dy = 0.0f;
+  float dir_x = cosf(plyr->angle);
+  float dir_y = sinf(plyr->angle);
   if (ev->type == SDL_KEYDOWN) {
     switch (ev->key.keysym.sym) {
 
     case SDLK_w:
-      plyr->y = plyr->y - 5;
+        dx = dir_x;
+        dy = dir_y;
       break;
     case SDLK_s:
-      plyr->y = plyr->y + 5;
+        dx = -dir_x;
+        dy = -dir_y;
       break;
     case SDLK_a:
-      plyr->x = plyr->x - 5;
+        dx = dir_y;
+        dy = -dir_x;
       break;
     case SDLK_d:
-      plyr->x = plyr->x + 5;
+         dx = -dir_y;
+        dy = dir_x;
       break;
     case SDLK_LEFT:
-      plyr->angle = plyr->angle - 0.5 * (PI / 180);
-      break;
+      plyr->angle -= ROT_SPEED; 
+      return;
     case SDLK_RIGHT:
-      plyr->angle = plyr->angle + 0.5 * (PI / 180);
-      break;
+      plyr->angle += ROT_SPEED;
+      return;
     default:
       break;
     }
+  }
+
+  dx *= MOVE_SPEED;
+  dy *= MOVE_SPEED;
+
+  // test: "if I take this SMALL step, will I touch a wall?"
+  if(CanMov(plyr, plyr->x+dx, plyr->y+dy)){
+    // FIX: move by the SAME step we just tested (dx/dy).
+    // before it did "+= dir_x / dir_y", which:
+    //   1) moved a full 1.0 tile while only 0.5 was tested -> wall clipping
+    //   2) made 'a'/'d' (strafe) move FORWARD, since dx/dy were ignored
+    plyr->x += dx;
+    plyr->y += dy;
   }
 }
 int main() {
 
   App app;
 
-  PlayerPos plyr = {80, 80, 0.0};
+  PlayerPos plyr = {2.5f, 2.5f, 0.0f};
   if (SDL_Init(SDL_INIT_VIDEO) < 0) {
     printf("error occured while initializing sdl %s", SDL_GetError());
     exit(1);
@@ -304,15 +405,6 @@ int main() {
     exit(1);
   }
 
-  SDL_SetRenderDrawColor(app.rndr, 255, 255, 255, 255);
-
-  SDL_RenderClear(app.rndr);
-
-  RenderBlock(&app);
-  RenderPlayer(&app, &plyr);
-
-  EmitRays(&app, &plyr);
-  SDL_RenderPresent(app.rndr);
 
   SDL_Event e;
   bool quit = false;
@@ -330,9 +422,12 @@ int main() {
     SDL_RenderClear(app.rndr);
 
     RenderBlock(&app);
-    RenderPlayer(&app, &plyr);
     EmitRays(&app, &plyr);
+    RenderPlayer(&app, &plyr);
+    // FIX: removed the 2nd EmitRays() - it drew every ray twice per frame
+    Render3D(&app, &plyr);
     SDL_RenderPresent(app.rndr);
+    
   }
 
   SDL_DestroyRenderer(app.rndr);
